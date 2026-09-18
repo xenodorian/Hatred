@@ -78,6 +78,20 @@ companion-join lines fire at the exact right level transitions (tested
 across the full 1-100 range for every event type, and a full build→invade→
 combat click-through still works end to end with zero console errors.
 
+### Dungeon side-content pass (ChatGPT)
+Expanded the dungeon's defensive roster and fixed several follow-on issues:
+
+- Added 3 more combat defenders: Imp Slinger (level 12), Frost Spider (level 20), and Necromancer (level 28). The spider slows the hero and the necromancer heals nearby defenders.
+- Added 3 wall types: Reinforced Wall (level 5), Rune Wall (level 18), plus the existing basic Wall. Rune Walls inflict contact damage while still functioning as path blockers.
+- Added 3 traps: Spike Trap (level 3), Fire Rune (level 14), and Frost Rune (level 24). Traps trigger when the hero enters their tile; Frost Rune also slows the hero.
+- Added 3 persistent upgrades: Fortified Masonry, Cruel Engineering, and Demonic Logistics, expanding the original damage/health/income upgrade set.
+- Added simple projectile traces for defender attacks and more explicit trap rendering.
+- Reworked hero movement to follow the nearest actual BFS waypoint rather than deriving a waypoint from the hero's x-coordinate.
+- Fixed old saves so missing upgrade fields are migrated to zero instead of producing undefined/NaN behavior.
+- Increased completed-level gold scaling so the new roster remains economically accessible.
+
+Validation: game.js was compiled with JavaScript's Function constructor after the changes with no syntax error. A full browser click-through still needs to be rerun by Claude Code; this pass deliberately avoided claiming browser-level verification without that environment.
+
 ### Next milestone
 Expand the map from a simple grid into a room-and-corridor dungeon and add hero equipment, side quests, companions and specialized defensive structures.
 
