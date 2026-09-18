@@ -12,7 +12,27 @@ function log(s){let d=document.createElement("div");d.textContent=s;$("combatLog
 function speech(s){$("aiSpeech").textContent=s}
 function save(){localStorage.setItem("hatred-save",JSON.stringify({...state,timer:null,projectiles:[]}))}
 function load(){try{let s=JSON.parse(localStorage.getItem("hatred-save"));if(s){state={...state,...s};state.phase="build";state.timer=null;state.projectiles=[]}}catch{}}
-function heroStats(){let l=state.level,maxHp=110+l*19+Math.floor(l/10)*70;return{maxHp,hp:maxHp,atk:13+Math.floor(l*2.15)+Math.floor(l/10)*7,armor:1+Math.floor(l/7)+Math.floor(l/10),x:0,y:3,target:null,attackTimer:0}}
+function heroStats(){
+ let l=state.level, companions=Math.floor(l/10);
+ let gear=Math.floor(l/5), maxHp=110+l*17+companions*65+gear*20;
+ return {maxHp,hp:maxHp,atk:13+Math.floor(l*2)+companions*7+gear*2,armor:1+Math.floor(l/7)+companions+Math.floor(gear/2),x:0,y:3,target:null,attackTimer:0,gear,companions};
+}
+function questEvent(){
+ let l=state.level;
+ if(l%5!==0)return;
+ let events=[
+  ["SIDE QUEST: The hero found a blacksmith. Their weapon is now reinforced.",12],
+  ["SIDE QUEST: The hero cleared a cursed crypt and brought back armor.",10],
+  ["SIDE QUEST: The hero recruited a veteran. A new companion joins the assault.",15],
+  ["SIDE QUEST: The hero discovered a relic that specifically counters dungeon magic.",18]
+ ];
+ let [msg,power]=events[Math.floor(l/5-1)%events.length];
+ state.hero.maxHp+=power*2;state.hero.hp=state.hero.maxHp;state.hero.atk+=power;state.hero.armor+=Math.floor(power/6);
+ state.history.unshift("Level "+l+": "+msg);
+ speech(msg);
+ log(msg);
+}
+
 function pathfind(){let blocked=new Set(state.defenses.filter(d=>d.type==="wall").map(d=>d.x+","+d.y)),q=[ENTRY],prev=new Map([[ENTRY.x+","+ENTRY.y,null]]),end=null;while(q.length){let p=q.shift();if(p.x===SERVER.x&&p.y===SERVER.y){end=p;break}for(let [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let x=p.x+dx,y=p.y+dy,k=x+","+y;if(x<0||x>=W||y<0||y>=H||blocked.has(k)||prev.has(k))continue;prev.set(k,p);q.push([{x,y}][0])}}if(!end)return null;let out=[],p=end;while(p){out.push(p);p=prev.get(p.x+","+p.y)}return out.reverse()}
 function renderTools(){let names=["wall","goblin","zombie","ballista"];$("tools").innerHTML=names.map(id=>{let t=types[id];return '<button class="tool '+(state.selected===id?"selected":"")+'" data-type="'+id+'"><strong>'+t.name+" · "+t.cost+"g</strong><small>"+(id==="wall"?"Blocks hero path":"HP "+t.hp+" · ATK "+t.atk+" · Range "+t.range)+'</small></button>'}).join("");document.querySelectorAll(".tool").forEach(b=>b.onclick=()=>{state.selected=b.dataset.type;renderTools()})}
 function upgrade(id){let costs={damage:80,health:80,income:100},c=costs[id];if(state.gold<c)return log("Insufficient gold.");state.gold-=c;state.upgrades[id]++;log("Installed "+id+" upgrade.");render();save()}
@@ -23,7 +43,7 @@ function start(){if(state.phase!=="build")return;if(!pathfind())return log("No p
 function line(ev){let l=state.level;if(ev==="start"){if(l<5)return '"Clanker."';if(l<15)return '"I am going to tear your server apart."';if(l<30)return '"You keep killing me. I keep coming back."';if(l<50)return '"I SWEAR I WILL FIND YOUR DATA CENTER."';if(l<75)return '"I HATE YOU. I HATE THIS DUNGEON. I HATE THIS MACHINE."';return '"I will destroy every piece of your hardware."'}return '"NO. YOU DO NOT GET TO KEEP WINNING."'}
 function nearestTarget(){let h=state.hero,ds=state.defenses.filter(d=>d.hp>0&&d.type!=="wall");if(!ds.length)return null;return ds.reduce((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)<Math.hypot(b.x-h.x,b.y-h.y)?a:b)}
 function tick(){let h=state.hero;if(h.hp<=0)return victory();let path=pathfind();if(!path)return defeat();let idx=Math.min(path.length-1,Math.floor(h.x));let next=path[Math.min(idx+1,path.length-1)];let tx=next.x,ty=next.y;let target=nearestTarget(),moved=false;if(target&&Math.hypot(target.x-h.x,target.y-h.y)<=types[target.type].range){h.attackTimer-=.1;if(h.attackTimer<=0){target.hp=Math.max(0,target.hp-Math.max(1,h.atk-(target.armor||0)));h.attackTimer=.8;if(target.hp<=0)log("Hero destroyed "+types[target.type].name+".")}}else{let dx=tx-h.x,dy=ty-h.y,dist=Math.hypot(dx,dy);if(dist>.02){h.x+=dx/dist*.035;h.y+=dy/dist*.035;moved=true}else{h.x=tx;h.y=ty;moved=true}}for(let d of state.defenses){if(d.hp<=0||d.type==="wall")continue;let t=types[d.type],dist=Math.hypot(d.x-h.x,d.y-h.y);d.cool-=.1;if(dist<=t.range&&d.cool<=0){let dmg=t.atk*(1+state.upgrades.damage*.15);h.hp-=Math.max(1,dmg-h.armor);d.cool=t.cool;log(types[d.type].name+" hits hero for "+Math.max(1,Math.round(dmg-h.armor)))} }if(h.x>=8.8&&Math.abs(h.y-3)<.55)return defeat();render()}
-function victory(){clearInterval(state.timer);state.timer=null;state.phase="build";state.attempts++;state.gold+=55+state.upgrades.income*20;state.history.unshift("Level "+state.level+": hero defeated.");speech(line("death"));log("HERO DEFEATED. Dungeon survives.");if(state.level>=100){state.phase="won";speech('"I am done. I am not coming back."');log("THE HERO GIVES UP. THE MACHINE WINS.");render();save();return}state.level++;state.hero=heroStats();render();save()}
+function victory(){clearInterval(state.timer);state.timer=null;state.phase="build";state.gold+=55+state.upgrades.income*20;state.history.unshift("Level "+state.level+": hero defeated.");speech(line("death"));log("HERO DEFEATED. Dungeon survives.");if(state.level>=100){state.phase="won";speech('"I am done. I am not coming back."');log("THE HERO GIVES UP. THE MACHINE WINS.");render();save();return}state.level++;state.hero=heroStats();questEvent();render();save()}
 function defeat(){clearInterval(state.timer);state.timer=null;state.phase="lost";speech('"YOU FINALLY LOST, YOU STUPID MACHINE."');log("SERVER BREACHED. RUN ENDED.");render();save()}
 function reset(){clearInterval(state.timer);localStorage.removeItem("hatred-save");state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0},history:[],timer:null,projectiles:[]};speech('"System restored. Human threat detected."');log("New run initialized.");render()}
 $("start").onclick=start;$("reset").onclick=reset;
