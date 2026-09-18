@@ -14,7 +14,7 @@ const types={
  frostSpider:{name:"Frost Spider",cost:72,hp:65,atk:16,range:1.3,cool:1.2,speed:0,color:"#58a1b8",unlock:20,slow:.55,slowDuration:1.8},
  necromancer:{name:"Necromancer",cost:115,hp:105,atk:11,range:3.5,cool:1.7,speed:0,color:"#7b5aa6",unlock:28,heal:12}
 };
-const TRAPS={spikeTrap:{name:"Spike Trap",cost:24,trap:true,damage:38,color:"#b55d5d",unlock:3},fireTrap:{name:"Fire Rune",cost:40,trap:true,damage:62,color:"#c46a35",unlock:14},frostTrap:{name:"Frost Rune",cost:52,trap:true,damage:28,color:"#58a1b8",unlock:24}};
+const TRAPS={spikeTrap:{name:"Spike Trap",cost:24,trap:true,damage:38,color:"#b55d5d",unlock:3},fireTrap:{name:"Fire Rune",cost:40,trap:true,damage:62,color:"#c46a35",unlock:14},frostTrap:{name:"Frost Rune",cost:52,trap:true,damage:28,color:"#58a1b8",unlock:24,slow:.7,slowDuration:2}};
 Object.assign(types,TRAPS);
 
 // Named beats for the hero's growing squad. heroStats() already folds a flat
@@ -90,10 +90,10 @@ function questEvent(){
 }
 
 function pathfind(){let blocked=new Set(state.defenses.filter(d=>types[d.type]&&types[d.type].kind==="wall").map(d=>d.x+","+d.y)),q=[ENTRY],prev=new Map([[ENTRY.x+","+ENTRY.y,null]]),end=null;while(q.length){let p=q.shift();if(p.x===SERVER.x&&p.y===SERVER.y){end=p;break}for(let [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let x=p.x+dx,y=p.y+dy,k=x+","+y;if(x<0||x>=W||y<0||y>=H||blocked.has(k)||prev.has(k))continue;prev.set(k,p);q.push([{x,y}][0])}}if(!end)return null;let out=[],p=end;while(p){out.push(p);p=prev.get(p.x+","+p.y)}return out.reverse()}
-function renderTools(){let names=Object.keys(types).filter(id=>!types[id].unlock||state.level>=types[id].unlock);$("tools").innerHTML=names.map(id=>{let t=types[id];return '<button class="tool '+(state.selected===id?"selected":"")+'" data-type="'+id+'"><strong>'+t.name+" · "+t.cost+"g</strong><small>"+(id==="wall"?"Blocks hero path":"HP "+t.hp+" · ATK "+t.atk+" · Range "+t.range)+'</small></button>'}).join("");document.querySelectorAll(".tool").forEach(b=>b.onclick=()=>{state.selected=b.dataset.type;renderTools()})}
+function renderTools(){let names=Object.keys(types).filter(id=>!types[id].unlock||state.level>=types[id].unlock);$("tools").innerHTML=names.map(id=>{let t=types[id];return '<button class="tool '+(state.selected===id?"selected":"")+'" data-type="'+id+'"><strong>'+t.name+" · "+t.cost+"g</strong><small>"+(t.trap?"Triggers for "+t.damage+" damage":t.kind==="wall"?"Blocks hero path":"HP "+t.hp+" · ATK "+t.atk+" · Range "+t.range)+'</small></button>'}).join("");document.querySelectorAll(".tool").forEach(b=>b.onclick=()=>{state.selected=b.dataset.type;renderTools()})}
 function upgrade(id){let costs={damage:80,health:80,income:100,masonry:90,traps:110,arsenal:140},c=costs[id];if(state.gold<c)return log("Insufficient gold.");state.gold-=c;state.upgrades[id]++;log("Installed "+id+" upgrade.");render();save()}
-function renderUpgrades(){let u=[["damage","Hardened weapons","Defender damage +15%"],["health","Reinforced minions","Defender HP +20%"],["income","Extraction routines","Victory gold +25"],["masonry","Fortified masonry","Wall HP +25%"],["traps","Cruel engineering","Trap damage +30% and reusable traps at Lv 2+"],["arsenal","Demonic logistics","Bonus +5g per completed level"]];$("upgrades").innerHTML=u.map(([id,n,d])=>'<div class="upgrade"><b>'+n+'</b><br>'+d+" · Lv "+state.upgrades[id]+'<button data-u="'+id+'">UPGRADE · '+({damage:80,health:80,income:100,masonry:90,traps:110,arsenal:140}[id])+"g</button></div>").join("");document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>upgrade(b.dataset.u))}
-function place(e){if(state.phase!=="build")return;let r=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*canvas.width/r.width/C),y=Math.floor((e.clientY-r.top)*canvas.height/r.height/C);if((x===0&&y===3)||(x===9&&y===3)||state.defenses.some(d=>d.x===x&&d.y===y))return;let t=types[state.selected];if(!t)return;if(state.gold<t.cost)return log("Not enough gold.");state.gold-=t.cost;let hp=t.hp*(1+state.upgrades.health*.2+(t.kind==="wall"?state.upgrades.masonry*.25:0));state.defenses.push({type:state.selected,x,y,hp,maxHp:hp,cool:0,armed:true});if(t.kind==="wall"&&!pathfind()){state.defenses.pop();state.gold+=t.cost;return log("That wall would seal the server completely.")}render();save()}
+function renderUpgrades(){let u=[["damage","Hardened weapons","Defender damage +15%"],["health","Reinforced minions","Defender HP +20%"],["income","Extraction routines","Victory gold +25"],["masonry","Fortified masonry","Wall HP +25%"],["traps","Cruel engineering","Trap damage +30%; Lv 2 traps re-arm after a delay"],["arsenal","Demonic logistics","Bonus +5g per completed level"]];$("upgrades").innerHTML=u.map(([id,n,d])=>'<div class="upgrade"><b>'+n+'</b><br>'+d+" · Lv "+state.upgrades[id]+'<button data-u="'+id+'">UPGRADE · '+({damage:80,health:80,income:100,masonry:90,traps:110,arsenal:140}[id])+"g</button></div>").join("");document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>upgrade(b.dataset.u))}
+function place(e){if(state.phase!=="build")return;let r=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*canvas.width/r.width/C),y=Math.floor((e.clientY-r.top)*canvas.height/r.height/C);if((x===0&&y===3)||(x===9&&y===3)||state.defenses.some(d=>d.x===x&&d.y===y))return;let t=types[state.selected];if(!t)return;if(state.gold<t.cost)return log("Not enough gold.");state.gold-=t.cost;let hp=t.hp*(1+state.upgrades.health*.2+(t.kind==="wall"?state.upgrades.masonry*.25:0));state.defenses.push({type:state.selected,x,y,hp,maxHp:hp,cool:0,armed:true,trapCooldown:0});if(t.kind==="wall"&&!pathfind()){state.defenses.pop();state.gold+=t.cost;return log("That wall would seal the server completely.")}render();save()}
 canvas.onclick=place;
 function start(){if(state.phase!=="build")return;if(!pathfind())return log("No path from entry to server.");state.phase="combat";state.attempts++;state.hero=heroStats();speech(line("start"));log("INVASION "+state.attempts+" BEGINS.");clearInterval(state.timer);state.timer=setInterval(tick,100);render()}
 function line(ev,l){l=l===undefined?state.level:l;if(ev==="won")return pick(DIALOGUE.won);return pick(tierLines(DIALOGUE[ev],l))}
@@ -112,10 +112,14 @@ function tick(){
   if(dist>.02){h.x+=dx/dist*step;h.y+=dy/dist*step}else{h.x=next.x;h.y=next.y}
  }
  for(let d of state.defenses){
-  let t=types[d.type];if(!t||!t.trap||!d.armed)continue;
+  let t=types[d.type];if(!t||!t.trap)continue;
+  if(d.trapCooldown>0){d.trapCooldown-=.1;if(d.trapCooldown<=0)d.armed=true}
+  if(!d.armed)continue;
   if(Math.floor(h.x+.5)===d.x&&Math.floor(h.y+.5)===d.y){
    let dmg=t.damage*(1+state.upgrades.traps*.3);h.hp-=Math.max(1,dmg-h.armor);
-   d.armed=state.upgrades.traps>=2;log(t.name+" triggers for "+Math.round(Math.max(1,dmg-h.armor))+" damage.");
+   if(t.slow)h.slow=t.slowDuration;
+   d.armed=false;if(state.upgrades.traps>=2)d.trapCooldown=1.8;
+   log(t.name+" triggers for "+Math.round(Math.max(1,dmg-h.armor))+" damage.");
    if(h.hp<=0)return victory();
   }
  }
