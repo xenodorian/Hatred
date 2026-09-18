@@ -146,11 +146,11 @@ function tick(){
   if(dist<=t.range&&d.cool<=0&&hasLineOfSight(d,h)){
    let dmg=t.atk*(1+state.upgrades.damage*.15);h.hp-=Math.max(1,dmg-h.armor);d.cool=t.cool;
    if(t.slow){h.slow=t.slowDuration;log("Frost Spider slows the hero.")}
-   state.projectiles.push({x:d.x,y:d.y,tx:h.x,ty:h.y,life:.25});
+   state.projectiles.push({x:d.x,y:d.y,tx:h.x,ty:h.y,life:.5,t:0});
    log(t.name+" hits hero for "+Math.round(Math.max(1,dmg-h.armor)));
   }
  }
- state.projectiles=state.projectiles.filter(p=>(p.life-=.1)>0);
+ state.projectiles=state.projectiles.filter(p=>(p.life-=.1)>0);state.projectiles.forEach(p=>p.t=Math.min(1,(p.t||0)+.2));
  if(h.x>=8.8&&Math.abs(h.y-3)<.55)return defeat();
  render()}
 function victory(){
@@ -184,6 +184,47 @@ function victory(){
 function defeat(){clearInterval(state.timer);state.timer=null;state.phase="lost";speech(line("breach"));log("SERVER BREACHED. RUN ENDED.");render();save()}
 function reset(){clearInterval(state.timer);localStorage.removeItem("hatred-save");state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0},history:[],timer:null,projectiles:[],heroBonus:{hp:0,atk:0,armor:0}};speech('"System restored. Human threat detected."');log("New run initialized.");render()}
 $("start").onclick=start;$("reset").onclick=reset;
-function draw(){ctx.clearRect(0,0,800,560);for(let y=0;y<H;y++)for(let x=0;x<W;x++){ctx.fillStyle=(x+y)%2?"#151820":"#12151b";ctx.fillRect(x*C,y*C,C,C);ctx.strokeStyle="#272c35";ctx.strokeRect(x*C,y*C,C,C)}ctx.fillStyle="#8b929e";ctx.font="12px monospace";ctx.fillText("ENTRY",7,20);ctx.fillStyle="#1e2530";ctx.fillRect(720,0,80,560);ctx.fillStyle="#d9dce2";ctx.fillText("SERVER",735,280);let p=pathfind();if(p&&state.phase==="build"){ctx.strokeStyle="#353d4a";ctx.lineWidth=5;ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(q.x*C+40,q.y*C+40):ctx.moveTo(q.x*C+40,q.y*C+40));ctx.stroke();ctx.lineWidth=1}for(let d of state.defenses){let t=types[d.type],cx=d.x*C+40,cy=d.y*C+40;ctx.fillStyle=t.color||"#69717d";if(t.trap){ctx.beginPath();ctx.arc(cx,cy,18,0,7);ctx.fill();if(!d.armed){ctx.fillStyle="#252830";ctx.fillRect(cx-18,cy-3,36,6)}}else{ctx.fillRect(cx-25,cy-25,50,50)}if(t.kind!=="wall"&&!t.trap){ctx.fillStyle="#101218";ctx.fillRect(cx-25,cy-33,50,5);ctx.fillStyle="#78b56a";ctx.fillRect(cx-25,cy-33,50*Math.max(0,d.hp/d.maxHp),5)}}for(let p of state.projectiles){ctx.strokeStyle="#d9dce2";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x*C+40,p.y*C+40);ctx.lineTo(p.tx*C+40,p.ty*C+40);ctx.stroke()}ctx.lineWidth=1;if(state.hero&&state.phase==="combat"){let h=state.hero;ctx.fillStyle="#c45b5b";ctx.beginPath();ctx.arc(h.x*C+40,h.y*C+40,20,0,7);ctx.fill();ctx.fillStyle="#111";ctx.fillRect(h.x*C+8,h.y*C+5,64,6);ctx.fillStyle="#79b56a";ctx.fillRect(h.x*C+8,h.y*C+5,64*Math.max(0,h.hp/h.maxHp),6)}}
-function render(){ $("level").textContent=state.level;$("attempts").textContent=state.attempts;$("gold").textContent=Math.floor(state.gold);$("defenseCount").textContent=state.defenses.filter(d=>d.hp>0).length;let h=state.hero||heroStats();$("heroHp").textContent=Math.round(h.maxHp);$("heroAtk").textContent=Math.round(h.atk);$("heroArmor").textContent=Math.round(h.armor);$("objective").textContent=(state.phase==="build"?"Build a route to the server, then start the invasion.":"Defend the server before the hero reaches it.")+" Hero is currently equipped with: "+gearTierName(state.level)+".";if(state.phase==="lost")$("objective").textContent="RUN LOST. Reset to begin again.";if(state.phase==="won")$("objective").textContent="THE HUMAN GAVE UP. ENDURANCE COMPLETE."; $("start").disabled=state.phase!=="build";$("history").innerHTML=state.history.map(x=>"<div>"+x+"</div>").join("")||"No completed invasions.";renderTools();renderUpgrades();draw()}
+function draw(){
+ ctx.clearRect(0,0,800,560);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  let edge=x===0||y===0||x===W-1||y===H-1;
+  ctx.fillStyle=edge?"#11151a":(x+y)%2?"#171b20":"#14181d";ctx.fillRect(x*C,y*C,C,C);
+  ctx.strokeStyle="#252b32";ctx.strokeRect(x*C,y*C,C,C);
+  if(!edge){ctx.fillStyle="#1d2228";ctx.fillRect(x*C+8,y*C+8,3,3);ctx.fillRect(x*C+66,y*C+54,2,2)}
+ }
+ let p=pathfind();
+ if(p&&state.phase==="build"){ctx.strokeStyle="#38424d";ctx.lineWidth=8;ctx.lineCap="round";ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(q.x*C+40,q.y*C+40):ctx.moveTo(q.x*C+40,q.y*C+40));ctx.stroke();ctx.lineWidth=1}
+ function label(text,x,y){ctx.font="bold 11px monospace";ctx.textAlign="center";ctx.fillStyle="#cbd0d8";ctx.fillText(text,x,y)}
+ label("ENTRY",40,17);
+ ctx.fillStyle="#0b0e12";ctx.fillRect(720,0,80,560);ctx.fillStyle="#202832";ctx.fillRect(728,190,64,180);ctx.strokeStyle="#5c6875";ctx.strokeRect(728,190,64,180);
+ ctx.fillStyle="#76a8d1";ctx.fillRect(738,205,44,28);ctx.fillStyle="#d9dce2";ctx.fillRect(744,245,32,10);ctx.fillRect(744,265,32,10);ctx.fillStyle="#76a8d1";ctx.fillRect(744,292,32,45);label("SERVER",760,355);
+ for(let d of state.defenses){
+  let t=types[d.type],cx=d.x*C+40,cy=d.y*C+40;
+  ctx.save();ctx.translate(cx,cy);
+  if(t.trap){
+   ctx.strokeStyle=d.armed?t.color:"#3a3e45";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.stroke();
+   if(d.type==="spikeTrap"){ctx.fillStyle=d.armed?"#b55d5d":"#3b3e43";for(let i=0;i<8;i++){let q=i*Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(q)*5,Math.sin(q)*5);ctx.lineTo(Math.cos(q)*19,Math.sin(q)*19);ctx.stroke()}}
+   else {ctx.fillStyle=d.armed?t.color:"#30343a";ctx.beginPath();ctx.moveTo(0,-18);ctx.lineTo(17,10);ctx.lineTo(0,18);ctx.lineTo(-17,10);ctx.closePath();ctx.fill();ctx.fillStyle="#e8edf2";ctx.fillRect(-2,-5,4,10)}
+  }else if(t.kind==="wall"){
+   ctx.fillStyle=t.color;ctx.fillRect(-30,-30,60,60);ctx.strokeStyle="#d4d8de";ctx.lineWidth=2;ctx.strokeRect(-30,-30,60,60);
+   if(d.type==="reinforced"){ctx.fillStyle="#5d4632";ctx.fillRect(-23,-23,46,8);ctx.fillRect(-23,-7,46,8);ctx.fillRect(-23,9,46,8)}
+   if(d.type==="runeWall"){ctx.strokeStyle="#b8aaff";ctx.beginPath();ctx.moveTo(-18,0);ctx.lineTo(-8,-12);ctx.lineTo(8,12);ctx.lineTo(18,0);ctx.stroke()}
+   else {ctx.strokeStyle="#8e98a5";ctx.beginPath();ctx.moveTo(-30,-10);ctx.lineTo(30,-10);ctx.moveTo(-30,10);ctx.lineTo(30,10);ctx.stroke()}
+  }else{
+   ctx.fillStyle=t.color;ctx.strokeStyle="#d8dce2";ctx.lineWidth=2;
+   if(d.type==="goblin"||d.type==="imp"){ctx.beginPath();ctx.arc(0,2,21,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(-17,-10);ctx.lineTo(-25,-28);ctx.lineTo(-5,-17);ctx.moveTo(17,-10);ctx.lineTo(25,-28);ctx.lineTo(5,-17);ctx.fill();ctx.stroke()}
+   else if(d.type==="zombie"){ctx.fillRect(-18,-18,36,40);ctx.fillStyle="#b6c0a2";ctx.fillRect(-11,-9,6,6);ctx.fillRect(5,-9,6,6)}
+   else if(d.type==="orc"){ctx.beginPath();ctx.moveTo(0,-25);ctx.lineTo(21,-10);ctx.lineTo(17,21);ctx.lineTo(-17,21);ctx.lineTo(-21,-10);ctx.closePath();ctx.fill();ctx.fillStyle="#e6d7bd";ctx.fillRect(-15,5,8,12);ctx.fillRect(7,5,8,12)}
+   else if(d.type==="ballista"){ctx.fillRect(-25,-5,50,10);ctx.fillRect(-5,-20,10,40);ctx.strokeStyle="#e0b36c";ctx.beginPath();ctx.moveTo(-22,-15);ctx.lineTo(22,15);ctx.moveTo(-22,15);ctx.lineTo(22,-15);ctx.stroke()}
+   else if(d.type==="arcane"){ctx.beginPath();ctx.arc(0,0,23,0,Math.PI*2);ctx.fill();ctx.fillStyle="#d8a6ff";ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();ctx.stroke()}
+   else if(d.type==="wraith"){ctx.beginPath();ctx.moveTo(-22,20);ctx.quadraticCurveTo(-8,-28,0,-20);ctx.quadraticCurveTo(10,-28,22,20);ctx.lineTo(10,12);ctx.lineTo(0,22);ctx.lineTo(-10,12);ctx.closePath();ctx.fill();ctx.stroke()}
+   else if(d.type==="frostSpider"){ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.fill();for(let i=0;i<8;i++){let q=i*Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(q)*8,Math.sin(q)*8);ctx.lineTo(Math.cos(q)*28,Math.sin(q)*28);ctx.stroke()}}
+   else if(d.type==="necromancer"){ctx.fillRect(-16,-18,32,38);ctx.beginPath();ctx.arc(0,-20,16,Math.PI,0);ctx.fill();ctx.fillStyle="#f0d9ff";ctx.fillRect(-9,-5,5,5);ctx.fillRect(4,-5,5,5)}
+   ctx.lineWidth=1;
+   if(d.hp<d.maxHp){ctx.fillStyle="#080a0d";ctx.fillRect(-27,-34,54,6);ctx.fillStyle="#79b56a";ctx.fillRect(-27,-34,54*Math.max(0,d.hp/d.maxHp),6)}
+  }ctx.restore();
+ }
+ for(let p of state.projectiles){let q=p.t||0,x=(p.x+(p.tx-p.x)*q)*C+40,y=(p.y+(p.ty-p.y)*q)*C+40;ctx.fillStyle="#e7eef5";ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill()}
+ if(state.hero&&state.phase==="combat"){let h=state.hero,cx=h.x*C+40,cy=h.y*C+40;ctx.fillStyle="#c45b5b";ctx.strokeStyle="#f0b1b1";ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,21,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#f2d7b0";ctx.fillRect(cx-12,cy-15,24,12);ctx.fillStyle="#242932";ctx.fillRect(cx-16,cy-3,32,18);ctx.fillStyle="#111";ctx.fillRect(cx-32,cy-36,64,6);ctx.fillStyle="#79b56a";ctx.fillRect(cx-32,cy-36,64*Math.max(0,h.hp/h.maxHp),6);if(h.slow>0){ctx.strokeStyle="#7ec8e8";ctx.beginPath();ctx.arc(cx,cy,27,0,Math.PI*2);ctx.stroke();label("SLOWED",cx,cy+39)}}
+}function render(){ $("level").textContent=state.level;$("attempts").textContent=state.attempts;$("gold").textContent=Math.floor(state.gold);$("defenseCount").textContent=state.defenses.filter(d=>d.hp>0).length;let h=state.hero||heroStats();$("heroHp").textContent=Math.round(h.maxHp);$("heroAtk").textContent=Math.round(h.atk);$("heroArmor").textContent=Math.round(h.armor);$("objective").textContent=(state.phase==="build"?"Build a route to the server, then start the invasion.":"Defend the server before the hero reaches it.")+" Hero is currently equipped with: "+gearTierName(state.level)+".";if(state.phase==="lost")$("objective").textContent="RUN LOST. Reset to begin again.";if(state.phase==="won")$("objective").textContent="THE HUMAN GAVE UP. ENDURANCE COMPLETE."; $("start").disabled=state.phase!=="build";$("history").innerHTML=state.history.map(x=>"<div>"+x+"</div>").join("")||"No completed invasions.";renderTools();renderUpgrades();draw()}
 load();render();log("System online. Human threat detected.");speech('"Welcome to my dungeon."');
