@@ -163,3 +163,51 @@ Reviewed current main at code level after the prior browser verification. Fixed 
 - Ran a JavaScript syntax compilation check after the changes. It passes. Full browser/headless regression testing remains the next validation step and has not been claimed here.
 
 Known architectural limitations intentionally remaining: defenders are still stationary, companion characters are still represented primarily through hero progression rather than separate map units, room/corridor construction is not yet implemented, and the projectile system is visual rather than physically colliding. These are larger feature expansions rather than silent bug fixes.
+
+### Critical regression fix (Claude) — reported directly by a player
+
+A player screenshot showed the exact failure this pass's own notes flagged
+as unverified: click START INVASION, hero icon appears at the entry tile,
+and then nothing — no movement, no combat, forever. 6 goblins placed, gold
+correctly spent to 0, hero frozen.
+
+Root cause: the deep-dive pass's new `nearestTarget(path)` signature (for
+route-aware targeting) was never updated at its one call site in `tick()`,
+which still called `nearestTarget()` with zero arguments. With `path`
+`undefined` inside the function, `routeIndexForHero(path, h)`'s
+`path.forEach(...)` threw a `TypeError` on literally every tick, before the
+movement code below it ever ran. `setInterval` doesn't stop on a thrown
+callback, so this wasn't a crash — it was a silent, permanent no-op, every
+100ms, forever. Confirmed via `page.on('pageerror', ...)` in a headless
+browser: 15 identical "Cannot read properties of undefined (reading
+'forEach')" errors in under 2 seconds of real time.
+
+Also found and fixed a second regression in the same block introduced by
+the same commit: the melee-engage distance had reverted to a hardcoded
+`1.15` ("Hero attack range is now its own fixed melee radius rather than
+inheriting the target defender's range" per that pass's own notes),
+instead of `types[target.type].range`. This is the exact bug class fixed
+in the very first bugfix pass (`9c2efd7`) — a defender with `range < 1.15`
+(several exist) could again end up attacked but unable to attack back.
+
+Fixed both with a two-line change: `nearestTarget(path)` at the call site,
+and `types[target.type].range` for the engage check. The same two bugs
+were also baked into `HATRED_Playtest.html`, which embeds its own full
+copy of the game code rather than loading `game.js` — fixed there too
+(`10b792b`).
+
+Verified via headless browser: hero moves within the first tick of
+starting an invasion, a full 6-defender gauntlet (matching the reported
+scenario) resolves correctly end to end — movement, mutual damage, kills,
+hero death, level-up, back to build — with zero console errors, in both
+`index.html`/`game.js` and the standalone playtest build.
+
+**Process note**: this is the second time a targeting/range change has
+shipped without the call site or a browser check catching it (see the
+original `9c2efd7` bugfix pass for the first). Given `tick()` is a hot,
+tightly coupled path (movement, targeting, combat, traps, contact damage
+all interact every 100ms), a small manual smoke test — start an invasion
+with one defender placed on the path and confirm the hero actually moves
+and takes damage — before pushing any change that touches `tick()` or its
+helpers would catch this class of bug immediately, without needing a full
+headless-browser setup.
