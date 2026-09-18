@@ -137,8 +137,8 @@ function tick(){
  h.slow=Math.max(0,(h.slow||0)-.1);
  let idx=0,minDist=Infinity;
  for(let i=0;i<path.length;i++){let d=Math.hypot(path[i].x-h.x,path[i].y-h.y);if(d<minDist){minDist=d;idx=i}}
- let next=path[Math.min(idx+1,path.length-1)],target=nearestTarget();
- if(target&&Math.hypot(target.x-h.x,target.y-h.y)<=1.15){
+ let next=path[Math.min(idx+1,path.length-1)],target=nearestTarget(path);
+ if(target&&Math.hypot(target.x-h.x,target.y-h.y)<=types[target.type].range){
   h.attackTimer-=.1;if(h.attackTimer<=0){target.hp=Math.max(0,target.hp-Math.max(1,h.atk-(target.armor||0)));h.attackTimer=.8;if(target.hp<=0)log("Hero destroyed "+types[target.type].name+".")}
  }else{
   let dx=next.x-h.x,dy=next.y-h.y,dist=Math.hypot(dx,dy),step=.035*(h.slow>0?.55:1);
