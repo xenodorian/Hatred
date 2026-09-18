@@ -14,7 +14,7 @@ const types={
  frostSpider:{name:"Frost Spider",cost:72,hp:65,atk:16,range:1.3,cool:1.2,speed:0,color:"#58a1b8",unlock:20,slow:.55,slowDuration:1.8},
  necromancer:{name:"Necromancer",cost:115,hp:105,atk:11,range:3.5,cool:1.7,speed:0,color:"#7b5aa6",unlock:28,heal:12}
 };
-const TRAPS={spikeTrap:{name:"Spike Trap",cost:24,trap:true,damage:38,color:"#b55d5d",unlock:3},fireTrap:{name:"Fire Rune",cost:40,trap:true,damage:62,color:"#c46a35",unlock:14},frostTrap:{name:"Frost Rune",cost:52,trap:true,damage:28,color:"#58a1b8",unlock:24,slow:.7,slowDuration:2}};
+const TRAPS={spikeTrap:{name:"Spike Trap",cost:24,trap:true,hp:1,damage:38,color:"#b55d5d",unlock:3},fireTrap:{name:"Fire Rune",cost:40,trap:true,hp:1,damage:62,color:"#c46a35",unlock:14},frostTrap:{name:"Frost Rune",cost:52,trap:true,hp:1,damage:28,color:"#58a1b8",unlock:24,slow:.7,slowDuration:2}};
 Object.assign(types,TRAPS);
 
 // Named allies join at these exact levels (not a flat every-N-levels rate) so
@@ -71,16 +71,16 @@ const DIALOGUE={
  ],
  won:["\"I am done. I am not coming back.\"","\"There is nothing left to give. Nothing left to say.\"","\"...I can't keep doing this.\""]
 };
-let state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0},history:[],timer:null,projectiles:[]};
+let state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0},history:[],timer:null,projectiles:[],heroBonus:{hp:0,atk:0,armor:0}};
 const $=id=>document.getElementById(id);
 function log(s){let d=document.createElement("div");d.textContent=s;$("combatLog").prepend(d)}
 function speech(s){$("aiSpeech").textContent=s}
 function save(){localStorage.setItem("hatred-save",JSON.stringify({...state,timer:null,projectiles:[]}))}
-function load(){try{let s=JSON.parse(localStorage.getItem("hatred-save"));if(s){state={...state,...s,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0,...(s.upgrades||{})}};state.phase="build";state.timer=null;state.projectiles=[]}}catch{}}
+function load(){try{let s=JSON.parse(localStorage.getItem("hatred-save"));if(s){state={...state,...s,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0,...(s.upgrades||{})},heroBonus:{hp:0,atk:0,armor:0,...(s.heroBonus||{})}};state.phase="build";state.timer=null;state.projectiles=[]}}catch{}}
 function heroStats(){
  let l=state.level, companions=ALLY_LEVELS.filter(x=>l>=x).length;
- let gear=Math.floor(l/5), maxHp=110+l*17+companions*65+gear*20;
- return {maxHp,hp:maxHp,atk:13+Math.floor(l*2)+companions*7+gear*2,armor:1+Math.floor(l/7)+companions+Math.floor(gear/2),x:0,y:3,target:null,attackTimer:0,gear,companions};
+ let gear=Math.floor(l/5), maxHp=110+l*17+companions*65+gear*20+state.heroBonus.hp;
+ return {maxHp,hp:maxHp,atk:13+Math.floor(l*2)+companions*7+gear*2+state.heroBonus.atk,armor:1+Math.floor(l/7)+companions+Math.floor(gear/2)+state.heroBonus.armor,x:0,y:3,target:null,attackTimer:0,gear,companions,slow:0};
 }
 function questEvent(){
  let l=state.level;
@@ -92,7 +92,7 @@ function questEvent(){
   ["SIDE QUEST: The hero discovered a relic that specifically counters dungeon magic.",18]
  ];
  let [msg,power]=events[Math.floor(l/5-1)%events.length];
- state.hero.maxHp+=power*2;state.hero.hp=state.hero.maxHp;state.hero.atk+=power;state.hero.armor+=Math.floor(power/6);
+ state.heroBonus.hp+=power*2;state.heroBonus.atk+=power;state.heroBonus.armor+=Math.floor(power/6);state.hero=heroStats();
  state.history.unshift("Level "+l+": "+msg);
  speech(msg);
  log(msg);
@@ -106,7 +106,7 @@ function place(e){if(state.phase!=="build")return;let r=canvas.getBoundingClient
 canvas.onclick=place;
 function start(){if(state.phase!=="build")return;if(!pathfind())return log("No path from entry to server.");state.phase="combat";state.attempts++;state.hero=heroStats();speech(line("start"));log("INVASION "+state.attempts+" BEGINS.");clearInterval(state.timer);state.timer=setInterval(tick,100);render()}
 function line(ev,l){l=l===undefined?state.level:l;if(ev==="won")return pick(DIALOGUE.won);return pick(tierLines(DIALOGUE[ev],l))}
-function nearestTarget(){let h=state.hero,ds=state.defenses.filter(d=>d.hp>0&&types[d.type]&&!types[d.type].kind&&!types[d.type].trap);if(!ds.length)return null;return ds.reduce((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)<Math.hypot(b.x-h.x,b.y-h.y)?a:b)}
+function hasLineOfSight(a,b){let x0=Math.round(a.x),y0=Math.round(a.y),x1=b.x,y1=b.y,dx=x1-x0,dy=y1-y0,steps=Math.max(Math.abs(dx),Math.abs(dy))*10;for(let i=1;i<steps;i++){let x=Math.round(x0+dx*i/steps),y=Math.round(y0+dy*i/steps);if((x!==x0||y!==y0)&&(x!==Math.round(x1)||y!==Math.round(y1))&&state.defenses.some(d=>d.x===x&&d.y===y&&types[d.type]&&types[d.type].kind==="wall"))return false}return true}\nfunction routeIndexForHero(path,h){let best=0,dist=Infinity;path.forEach((p,i)=>{let d=Math.hypot(p.x-h.x,p.y-h.y);if(d<dist){dist=d;best=i}});return best}\nfunction nearestTarget(path){let h=state.hero,idx=routeIndexForHero(path,h),ds=state.defenses.filter(d=>d.hp>0&&types[d.type]&&!types[d.type].kind&&!types[d.type].trap).map(d=>({d,route:path.findIndex(p=>p.x===d.x&&p.y===d.y)})).filter(o=>o.route>=0&&Math.abs(o.route-idx)<=2&&Math.hypot(o.d.x-h.x,o.d.y-h.y)<=2.2);if(!ds.length)return null;return ds.sort((a,b)=>Math.abs(a.route-idx)-Math.abs(b.route-idx)||Math.hypot(a.d.x-h.x,a.d.y-h.y)-Math.hypot(b.d.x-h.x,b.d.y-h.y))[0].d}
 function tick(){
  let h=state.hero;if(h.hp<=0)return victory();
  let path=pathfind();if(!path)return defeat();
@@ -114,7 +114,7 @@ function tick(){
  let idx=0,minDist=Infinity;
  for(let i=0;i<path.length;i++){let d=Math.hypot(path[i].x-h.x,path[i].y-h.y);if(d<minDist){minDist=d;idx=i}}
  let next=path[Math.min(idx+1,path.length-1)],target=nearestTarget();
- if(target&&Math.hypot(target.x-h.x,target.y-h.y)<=types[target.type].range){
+ if(target&&Math.hypot(target.x-h.x,target.y-h.y)<=1.15){
   h.attackTimer-=.1;if(h.attackTimer<=0){target.hp=Math.max(0,target.hp-Math.max(1,h.atk-(target.armor||0)));h.attackTimer=.8;if(target.hp<=0)log("Hero destroyed "+types[target.type].name+".")}
  }else{
   let dx=next.x-h.x,dy=next.y-h.y,dist=Math.hypot(dx,dy),step=.035*(h.slow>0?.55:1);
@@ -143,7 +143,7 @@ function tick(){
    let ally=state.defenses.filter(x=>x.hp>0&&types[x.type]&&!types[x.type].kind&&!types[x.type].trap&&x!==d).sort((a,b)=>Math.hypot(a.x-d.x,a.y-d.y)-Math.hypot(b.x-d.x,b.y-d.y))[0];
    if(ally&&Math.hypot(ally.x-d.x,ally.y-d.y)<=t.range){ally.hp=Math.min(ally.maxHp,ally.hp+t.heal);d.cool=t.cool;log("Necromancer restores a defender.")}
   }
-  if(dist<=t.range&&d.cool<=0){
+  if(dist<=t.range&&d.cool<=0&&hasLineOfSight(d,h)){
    let dmg=t.atk*(1+state.upgrades.damage*.15);h.hp-=Math.max(1,dmg-h.armor);d.cool=t.cool;
    if(t.slow){h.slow=t.slowDuration;log("Frost Spider slows the hero.")}
    state.projectiles.push({x:d.x,y:d.y,tx:h.x,ty:h.y,life:.25});
@@ -155,7 +155,7 @@ function tick(){
  render()}
 function victory(){
  clearInterval(state.timer);state.timer=null;state.phase="build";
- state.gold+=55+state.upgrades.income*20;
+ state.gold+=55+state.upgrades.income*25+state.upgrades.arsenal*5;
  state.history.unshift("Level "+state.level+": hero defeated.");
  speech(line("death"));
  log("HERO DEFEATED. Dungeon survives.");
@@ -182,7 +182,7 @@ function victory(){
  render();save()
 }
 function defeat(){clearInterval(state.timer);state.timer=null;state.phase="lost";speech(line("breach"));log("SERVER BREACHED. RUN ENDED.");render();save()}
-function reset(){clearInterval(state.timer);localStorage.removeItem("hatred-save");state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0},history:[],timer:null,projectiles:[]};speech('"System restored. Human threat detected."');log("New run initialized.");render()}
+function reset(){clearInterval(state.timer);localStorage.removeItem("hatred-save");state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0},history:[],timer:null,projectiles:[],heroBonus:{hp:0,atk:0,armor:0}};speech('"System restored. Human threat detected."');log("New run initialized.");render()}
 $("start").onclick=start;$("reset").onclick=reset;
 function draw(){ctx.clearRect(0,0,800,560);for(let y=0;y<H;y++)for(let x=0;x<W;x++){ctx.fillStyle=(x+y)%2?"#151820":"#12151b";ctx.fillRect(x*C,y*C,C,C);ctx.strokeStyle="#272c35";ctx.strokeRect(x*C,y*C,C,C)}ctx.fillStyle="#8b929e";ctx.font="12px monospace";ctx.fillText("ENTRY",7,20);ctx.fillStyle="#1e2530";ctx.fillRect(720,0,80,560);ctx.fillStyle="#d9dce2";ctx.fillText("SERVER",735,280);let p=pathfind();if(p&&state.phase==="build"){ctx.strokeStyle="#353d4a";ctx.lineWidth=5;ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(q.x*C+40,q.y*C+40):ctx.moveTo(q.x*C+40,q.y*C+40));ctx.stroke();ctx.lineWidth=1}for(let d of state.defenses){let t=types[d.type],cx=d.x*C+40,cy=d.y*C+40;ctx.fillStyle=t.color||"#69717d";if(t.trap){ctx.beginPath();ctx.arc(cx,cy,18,0,7);ctx.fill();if(!d.armed){ctx.fillStyle="#252830";ctx.fillRect(cx-18,cy-3,36,6)}}else{ctx.fillRect(cx-25,cy-25,50,50)}if(t.kind!=="wall"&&!t.trap){ctx.fillStyle="#101218";ctx.fillRect(cx-25,cy-33,50,5);ctx.fillStyle="#78b56a";ctx.fillRect(cx-25,cy-33,50*Math.max(0,d.hp/d.maxHp),5)}}for(let p of state.projectiles){ctx.strokeStyle="#d9dce2";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x*C+40,p.y*C+40);ctx.lineTo(p.tx*C+40,p.ty*C+40);ctx.stroke()}ctx.lineWidth=1;if(state.hero&&state.phase==="combat"){let h=state.hero;ctx.fillStyle="#c45b5b";ctx.beginPath();ctx.arc(h.x*C+40,h.y*C+40,20,0,7);ctx.fill();ctx.fillStyle="#111";ctx.fillRect(h.x*C+8,h.y*C+5,64,6);ctx.fillStyle="#79b56a";ctx.fillRect(h.x*C+8,h.y*C+5,64*Math.max(0,h.hp/h.maxHp),6)}}
 function render(){ $("level").textContent=state.level;$("attempts").textContent=state.attempts;$("gold").textContent=Math.floor(state.gold);$("defenseCount").textContent=state.defenses.filter(d=>d.hp>0).length;let h=state.hero||heroStats();$("heroHp").textContent=Math.round(h.maxHp);$("heroAtk").textContent=Math.round(h.atk);$("heroArmor").textContent=Math.round(h.armor);$("objective").textContent=(state.phase==="build"?"Build a route to the server, then start the invasion.":"Defend the server before the hero reaches it.")+" Hero is currently equipped with: "+gearTierName(state.level)+".";if(state.phase==="lost")$("objective").textContent="RUN LOST. Reset to begin again.";if(state.phase==="won")$("objective").textContent="THE HUMAN GAVE UP. ENDURANCE COMPLETE."; $("start").disabled=state.phase!=="build";$("history").innerHTML=state.history.map(x=>"<div>"+x+"</div>").join("")||"No completed invasions.";renderTools();renderUpgrades();draw()}
