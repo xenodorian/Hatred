@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HATRED</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+<header>
+  <div><h1>HATRED</h1><p>Dungeon defense from the other side of the screen.</p></div>
+  <div class="status"><span>LEVEL <b id="level">1</b></span><span>ATTEMPTS <b id="attempts">0</b></span><span>GOLD <b id="gold">120</b></span></div>
+</header>
+<div class="layout">
+<aside class="panel"><h2>CONSTRUCTION</h2><p id="objective"></p><div id="tools"></div><button id="start">START INVASION</button><button id="reset">RESET RUN</button><div class="stats"><div>Hero HP <b id="heroHp">-</b></div><div>Attack <b id="heroAtk">-</b></div><div>Armor <b id="heroArmor">-</b></div><div>Defenses <b id="defenseCount">0</b></div></div></aside>
+<section><canvas id="board" width="800" height="560"></canvas><div id="combatLog" class="log"></div></section>
+<aside class="panel"><h2>SERVER</h2><div id="aiSpeech" class="speech"></div><h2>UPGRADES</h2><div id="upgrades"></div><h2>HERO HISTORY</h2><div id="history"></div></aside>
+</div>
+</main><script src="game.js"></script>
+</body></html>
