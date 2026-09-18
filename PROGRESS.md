@@ -92,7 +92,56 @@ Expanded the dungeon's defensive roster and fixed several follow-on issues:
 
 Validation: game.js was compiled with JavaScript's Function constructor after the changes with no syntax error. A full browser click-through still needs to be rerun by Claude Code; this pass deliberately avoided claiming browser-level verification without that environment.
 
-### Next milestone
-Expand the map from a simple grid into a room-and-corridor dungeon and add hero equipment, side quests, companions and specialized defensive structures.
+### Browser verification of the dungeon side-content pass (Claude)
+Ran the requested full click-through in a headless browser. No regressions:
+placed a mix of traps/walls/support units (spike trap, frost trap,
+necromancer, frost spider, rune wall, imp, goblin) at level 30, ran a full
+invasion to breach, zero console errors throughout.
 
-A real balance pass is still owed (flagged in Issue #1): verify gold income vs. new unlock costs over a full run, and whether melee vs. ranged defenders stay both viable as the hero out-scales them.
+Found and fixed one real bug along the way: trap defenses have no `hp`
+field in `types`, so `place()`'s `hp = t.hp * (1 + ...)` computed `NaN`.
+Harmless to trap logic itself (nothing reads a trap's hp except the
+`defenseCount` HUD stat, which filters on `d.hp > 0`), but it meant every
+placed trap silently vanished from that count. Fixed by giving traps a
+fixed `hp: 1` instead of deriving it from a field they don't have.
+
+### Hero-side expansion (Claude)
+Per direct request: named gear/weapon progression and a fixed ally-join
+cadence, replacing the flat "one companion per 10 levels" system.
+
+- **Named gear tiers**: `heroStats()`'s numeric `gear` stat (unchanged) now
+  has a `GEAR_TIERS` naming layer on top — 7 named weapon/armor sets from
+  "Rusty Shortsword & Leather Rags" at level 1 to "The Last Thing You'll
+  Ever See" at level 100. `victory()` announces the upgrade the moment the
+  hero crosses into a new tier, and the CONSTRUCTION panel's objective text
+  now always shows the hero's current gear name.
+- **Allies now join at exactly levels 20/40/60/80** (`ALLY_LEVELS`) instead
+  of every 10 levels — 4 named arrivals (Paladin, Witch, estranged sibling,
+  a whole squad of volunteers) instead of 10 generic ones, each still tied
+  to `heroStats().companions` so the stat contribution and the narrative
+  beat can never drift apart.
+
+**Balance note**: this reduces the companion stat contribution's ceiling
+from 10x to 4x by level 100 (the previous every-10-levels cadence hit 10
+companions by end-game; the new fixed-4 cadence caps at 4). That's a real
+power reduction for the level-100 hero, not just a relabeling — worth
+weighing in the still-owed balance pass, since it may now undershoot where
+zombies/turrets top out relative to the hero. Didn't compensate for it
+elsewhere since that wasn't asked for and would be guessing at numbers
+without the full-run simulation the balance pass needs anyway.
+
+Verified via headless browser: gear tier boundaries resolve correctly
+across the full level range, companions tick up at exactly 20/40/60/80
+(confirmed via direct `heroStats()` calls at 19/20/39/40/59/60/79/80),
+both announcements fire correctly through real `victory()` transitions
+with no duplicate or missing events, and a full build → invade → combat
+run with the new content still completes with zero console errors.
+
+### Next milestone
+Expand the map from a simple grid into a room-and-corridor dungeon.
+
+A real balance pass is still owed (flagged in Issue #1): verify gold income
+vs. new unlock costs over a full run, whether melee vs. ranged defenders
+stay both viable as the hero out-scales them, and now also whether the
+hero's reduced companion ceiling (10x -> 4x by level 100, see above) needs
+compensating elsewhere in the hero curve.

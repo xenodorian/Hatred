@@ -17,21 +17,30 @@ const types={
 const TRAPS={spikeTrap:{name:"Spike Trap",cost:24,trap:true,damage:38,color:"#b55d5d",unlock:3},fireTrap:{name:"Fire Rune",cost:40,trap:true,damage:62,color:"#c46a35",unlock:14},frostTrap:{name:"Frost Rune",cost:52,trap:true,damage:28,color:"#58a1b8",unlock:24,slow:.7,slowDuration:2}};
 Object.assign(types,TRAPS);
 
-// Named beats for the hero's growing squad. heroStats() already folds a flat
-// "companions" count (one per 10 levels) into hero stats; this just gives
-// that number a face, announced the moment it ticks up.
-const COMPANION_JOIN=[
- "A disgraced Ranger joins the hero, swearing revenge on your goblins specifically.",
+// Named allies join at these exact levels (not a flat every-N-levels rate) so
+// each arrival can be a real narrative beat instead of a background tick.
+// heroStats() below counts how many of these thresholds have been crossed.
+const ALLY_LEVELS=[20,40,60,80];
+const ALLY_JOIN=[
  "A grim Paladin falls in beside the hero. Neither of them smiles. Neither do you, technically.",
  "A vengeful Witch joins the party. She has strong opinions about server rooms.",
- "A grizzled Mercenary signs on. He's been paid. He'd have come for free.",
  "The hero's estranged sibling arrives, and whatever this was about before, it's personal now.",
- "A whole squad of volunteers falls in behind the hero. They all know your name. None of them like it.",
- "A defected siege engineer joins, muttering about 'finally building something that matters.'",
- "Townsfolk arm themselves and march with the hero. This was never supposed to become a war.",
- "A rival AI's former handler joins the cause, and they know exactly how machines like you think.",
- "An entire army gathers behind the hero. Every one of them hates you. Every one of them is right to."
+ "A whole squad of volunteers falls in behind the hero. They all know your name. None of them like it."
 ];
+
+// Named weapon/armor tiers, purely presentational on top of the numeric
+// `gear` stat multiplier heroStats() already computes — this just gives the
+// player-facing number a name, announced whenever it changes.
+const GEAR_TIERS=[
+ {level:1,name:"Rusty Shortsword & Leather Rags"},
+ {level:10,name:"Tempered Steel Blade & Studded Leather"},
+ {level:25,name:"Enchanted Longsword & Chainmail"},
+ {level:40,name:"Dragon-Forged Greatsword & Plate Armor"},
+ {level:60,name:"Blessed Executioner's Edge & Sanctified Plate"},
+ {level:80,name:"Reality-Cutting Blade & Voidforged Armor"},
+ {level:100,name:"The Last Thing You'll Ever See"}
+];
+function gearTierName(l){let n=GEAR_TIERS[0].name;for(let t of GEAR_TIERS)if(l>=t.level)n=t.name;return n}
 
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function tierLines(pool,l){for(let t of pool)if(l<=t.max)return t.lines;return pool[pool.length-1].lines}
@@ -69,7 +78,7 @@ function speech(s){$("aiSpeech").textContent=s}
 function save(){localStorage.setItem("hatred-save",JSON.stringify({...state,timer:null,projectiles:[]}))}
 function load(){try{let s=JSON.parse(localStorage.getItem("hatred-save"));if(s){state={...state,...s,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0,...(s.upgrades||{})}};state.phase="build";state.timer=null;state.projectiles=[]}}catch{}}
 function heroStats(){
- let l=state.level, companions=Math.floor(l/10);
+ let l=state.level, companions=ALLY_LEVELS.filter(x=>l>=x).length;
  let gear=Math.floor(l/5), maxHp=110+l*17+companions*65+gear*20;
  return {maxHp,hp:maxHp,atk:13+Math.floor(l*2)+companions*7+gear*2,armor:1+Math.floor(l/7)+companions+Math.floor(gear/2),x:0,y:3,target:null,attackTimer:0,gear,companions};
 }
@@ -93,7 +102,7 @@ function pathfind(){let blocked=new Set(state.defenses.filter(d=>types[d.type]&&
 function renderTools(){let names=Object.keys(types).filter(id=>!types[id].unlock||state.level>=types[id].unlock);$("tools").innerHTML=names.map(id=>{let t=types[id];return '<button class="tool '+(state.selected===id?"selected":"")+'" data-type="'+id+'"><strong>'+t.name+" · "+t.cost+"g</strong><small>"+(t.trap?"Triggers for "+t.damage+" damage":t.kind==="wall"?"Blocks hero path":"HP "+t.hp+" · ATK "+t.atk+" · Range "+t.range)+'</small></button>'}).join("");document.querySelectorAll(".tool").forEach(b=>b.onclick=()=>{state.selected=b.dataset.type;renderTools()})}
 function upgrade(id){let costs={damage:80,health:80,income:100,masonry:90,traps:110,arsenal:140},c=costs[id];if(state.gold<c)return log("Insufficient gold.");state.gold-=c;state.upgrades[id]++;log("Installed "+id+" upgrade.");render();save()}
 function renderUpgrades(){let u=[["damage","Hardened weapons","Defender damage +15%"],["health","Reinforced minions","Defender HP +20%"],["income","Extraction routines","Victory gold +25"],["masonry","Fortified masonry","Wall HP +25%"],["traps","Cruel engineering","Trap damage +30%; Lv 2 traps re-arm after a delay"],["arsenal","Demonic logistics","Bonus +5g per completed level"]];$("upgrades").innerHTML=u.map(([id,n,d])=>'<div class="upgrade"><b>'+n+'</b><br>'+d+" · Lv "+state.upgrades[id]+'<button data-u="'+id+'">UPGRADE · '+({damage:80,health:80,income:100,masonry:90,traps:110,arsenal:140}[id])+"g</button></div>").join("");document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>upgrade(b.dataset.u))}
-function place(e){if(state.phase!=="build")return;let r=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*canvas.width/r.width/C),y=Math.floor((e.clientY-r.top)*canvas.height/r.height/C);if((x===0&&y===3)||(x===9&&y===3)||state.defenses.some(d=>d.x===x&&d.y===y))return;let t=types[state.selected];if(!t)return;if(state.gold<t.cost)return log("Not enough gold.");state.gold-=t.cost;let hp=t.hp*(1+state.upgrades.health*.2+(t.kind==="wall"?state.upgrades.masonry*.25:0));state.defenses.push({type:state.selected,x,y,hp,maxHp:hp,cool:0,armed:true,trapCooldown:0});if(t.kind==="wall"&&!pathfind()){state.defenses.pop();state.gold+=t.cost;return log("That wall would seal the server completely.")}render();save()}
+function place(e){if(state.phase!=="build")return;let r=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*canvas.width/r.width/C),y=Math.floor((e.clientY-r.top)*canvas.height/r.height/C);if((x===0&&y===3)||(x===9&&y===3)||state.defenses.some(d=>d.x===x&&d.y===y))return;let t=types[state.selected];if(!t)return;if(state.gold<t.cost)return log("Not enough gold.");state.gold-=t.cost;let hp=t.trap?1:t.hp*(1+state.upgrades.health*.2+(t.kind==="wall"?state.upgrades.masonry*.25:0));state.defenses.push({type:state.selected,x,y,hp,maxHp:hp,cool:0,armed:true,trapCooldown:0});if(t.kind==="wall"&&!pathfind()){state.defenses.pop();state.gold+=t.cost;return log("That wall would seal the server completely.")}render();save()}
 canvas.onclick=place;
 function start(){if(state.phase!=="build")return;if(!pathfind())return log("No path from entry to server.");state.phase="combat";state.attempts++;state.hero=heroStats();speech(line("start"));log("INVASION "+state.attempts+" BEGINS.");clearInterval(state.timer);state.timer=setInterval(tick,100);render()}
 function line(ev,l){l=l===undefined?state.level:l;if(ev==="won")return pick(DIALOGUE.won);return pick(tierLines(DIALOGUE[ev],l))}
@@ -151,11 +160,17 @@ function victory(){
  speech(line("death"));
  log("HERO DEFEATED. Dungeon survives.");
  if(state.level>=100){state.phase="won";speech(line("won"));log("THE HERO GIVES UP. THE MACHINE WINS.");render();save();return}
- let prevLevel=state.level,prevCompanions=state.hero.companions;
+ let prevLevel=state.level,prevCompanions=state.hero.companions,prevGear=gearTierName(prevLevel);
  state.level++;
  state.hero=heroStats();
- if(state.hero.companions>prevCompanions&&COMPANION_JOIN[state.hero.companions-1]){
-  let msg=COMPANION_JOIN[state.hero.companions-1];
+ let newGear=gearTierName(state.level);
+ if(newGear!==prevGear){
+  let msg="The hero returns better equipped: "+newGear+".";
+  state.history.unshift("Level "+state.level+": "+msg);
+  log(msg);
+ }
+ if(state.hero.companions>prevCompanions&&ALLY_JOIN[state.hero.companions-1]){
+  let msg=ALLY_JOIN[state.hero.companions-1];
   state.history.unshift("Level "+state.level+": "+msg);
   log(msg);
  }
@@ -170,5 +185,5 @@ function defeat(){clearInterval(state.timer);state.timer=null;state.phase="lost"
 function reset(){clearInterval(state.timer);localStorage.removeItem("hatred-save");state={level:1,attempts:0,gold:120,selected:"goblin",phase:"build",defenses:[],hero:null,upgrades:{damage:0,health:0,income:0,masonry:0,traps:0,arsenal:0},history:[],timer:null,projectiles:[]};speech('"System restored. Human threat detected."');log("New run initialized.");render()}
 $("start").onclick=start;$("reset").onclick=reset;
 function draw(){ctx.clearRect(0,0,800,560);for(let y=0;y<H;y++)for(let x=0;x<W;x++){ctx.fillStyle=(x+y)%2?"#151820":"#12151b";ctx.fillRect(x*C,y*C,C,C);ctx.strokeStyle="#272c35";ctx.strokeRect(x*C,y*C,C,C)}ctx.fillStyle="#8b929e";ctx.font="12px monospace";ctx.fillText("ENTRY",7,20);ctx.fillStyle="#1e2530";ctx.fillRect(720,0,80,560);ctx.fillStyle="#d9dce2";ctx.fillText("SERVER",735,280);let p=pathfind();if(p&&state.phase==="build"){ctx.strokeStyle="#353d4a";ctx.lineWidth=5;ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(q.x*C+40,q.y*C+40):ctx.moveTo(q.x*C+40,q.y*C+40));ctx.stroke();ctx.lineWidth=1}for(let d of state.defenses){let t=types[d.type],cx=d.x*C+40,cy=d.y*C+40;ctx.fillStyle=t.color||"#69717d";if(t.trap){ctx.beginPath();ctx.arc(cx,cy,18,0,7);ctx.fill();if(!d.armed){ctx.fillStyle="#252830";ctx.fillRect(cx-18,cy-3,36,6)}}else{ctx.fillRect(cx-25,cy-25,50,50)}if(t.kind!=="wall"&&!t.trap){ctx.fillStyle="#101218";ctx.fillRect(cx-25,cy-33,50,5);ctx.fillStyle="#78b56a";ctx.fillRect(cx-25,cy-33,50*Math.max(0,d.hp/d.maxHp),5)}}for(let p of state.projectiles){ctx.strokeStyle="#d9dce2";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x*C+40,p.y*C+40);ctx.lineTo(p.tx*C+40,p.ty*C+40);ctx.stroke()}ctx.lineWidth=1;if(state.hero&&state.phase==="combat"){let h=state.hero;ctx.fillStyle="#c45b5b";ctx.beginPath();ctx.arc(h.x*C+40,h.y*C+40,20,0,7);ctx.fill();ctx.fillStyle="#111";ctx.fillRect(h.x*C+8,h.y*C+5,64,6);ctx.fillStyle="#79b56a";ctx.fillRect(h.x*C+8,h.y*C+5,64*Math.max(0,h.hp/h.maxHp),6)}}
-function render(){ $("level").textContent=state.level;$("attempts").textContent=state.attempts;$("gold").textContent=Math.floor(state.gold);$("defenseCount").textContent=state.defenses.filter(d=>d.hp>0).length;let h=state.hero||heroStats();$("heroHp").textContent=Math.round(h.maxHp);$("heroAtk").textContent=Math.round(h.atk);$("heroArmor").textContent=Math.round(h.armor);$("objective").textContent=state.phase==="build"?"Build a route to the server, then start the invasion.":"Defend the server before the hero reaches it.";if(state.phase==="lost")$("objective").textContent="RUN LOST. Reset to begin again.";if(state.phase==="won")$("objective").textContent="THE HUMAN GAVE UP. ENDURANCE COMPLETE."; $("start").disabled=state.phase!=="build";$("history").innerHTML=state.history.map(x=>"<div>"+x+"</div>").join("")||"No completed invasions.";renderTools();renderUpgrades();draw()}
+function render(){ $("level").textContent=state.level;$("attempts").textContent=state.attempts;$("gold").textContent=Math.floor(state.gold);$("defenseCount").textContent=state.defenses.filter(d=>d.hp>0).length;let h=state.hero||heroStats();$("heroHp").textContent=Math.round(h.maxHp);$("heroAtk").textContent=Math.round(h.atk);$("heroArmor").textContent=Math.round(h.armor);$("objective").textContent=(state.phase==="build"?"Build a route to the server, then start the invasion.":"Defend the server before the hero reaches it.")+" Hero is currently equipped with: "+gearTierName(state.level)+".";if(state.phase==="lost")$("objective").textContent="RUN LOST. Reset to begin again.";if(state.phase==="won")$("objective").textContent="THE HUMAN GAVE UP. ENDURANCE COMPLETE."; $("start").disabled=state.phase!=="build";$("history").innerHTML=state.history.map(x=>"<div>"+x+"</div>").join("")||"No completed invasions.";renderTools();renderUpgrades();draw()}
 load();render();log("System online. Human threat detected.");speech('"Welcome to my dungeon."');

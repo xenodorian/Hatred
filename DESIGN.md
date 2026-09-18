@@ -9,9 +9,11 @@ Core systems:
   Slingers and an Arcane Cannon as ranged defenders; Frost Spiders and
   Necromancers provide control/support. New defenders unlock at levels
   8-28 and are surfaced automatically in the build palette.
-- Hero stats that increase with dungeon level, plus named companions
-  joining every 10 levels (`COMPANION_JOIN`) and periodic side-quest power
-  spikes every 5 levels (`questEvent()`).
+- Hero stats that increase with dungeon level, plus named allies joining at
+  exactly levels 20/40/60/80 (`ALLY_LEVELS`/`ALLY_JOIN`, one per hero, not a
+  flat rate), named gear/weapon tiers (`GEAR_TIERS`) announced whenever the
+  hero crosses into a new one, and periodic side-quest power spikes every 5
+  levels (`questEvent()`).
 - Persistent dungeon upgrades.
 - Repeated invasions and escalating dialogue — a `DIALOGUE` table of level
   tiers × event type (start/death/breach/won), several lines per tier,
@@ -26,7 +28,9 @@ Planned expansion:
   there's no reason a given hero build should be weak to any particular
   defender type — worth a real rock-paper-scissors pass).
 - More narrative events tied to *specific* build choices, not just level.
-- Balancing pass: verify gold income vs. new unlock costs, and whether
-  melee vs. ranged defenders both stay worth building as the hero
-  out-scales them.
+- Balancing pass: verify gold income vs. new unlock costs, whether melee
+  vs. ranged defenders both stay worth building as the hero out-scales
+  them, and whether the hero curve needs compensating now that the
+  companion stat ceiling dropped from 10x (old every-10-levels cadence) to
+  4x (fixed 20/40/60/80 cadence) by level 100.
 - Better save management (e.g. save slots, export/import).
