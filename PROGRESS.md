@@ -145,3 +145,21 @@ vs. new unlock costs over a full run, whether melee vs. ranged defenders
 stay both viable as the hero out-scales them, and now also whether the
 hero's reduced companion ceiling (10x -> 4x by level 100, see above) needs
 compensating elsewhere in the hero curve.
+
+
+### Deep-dive repair pass (ChatGPT)
+
+Reviewed current main at code level after the prior browser verification. Fixed the following issues:
+
+- Made side-quest bonuses persistent through a new saved `heroBonus` object instead of modifying only the transient hero instance. Old saves migrate missing bonus fields to zero.
+- Corrected reward descriptions/behavior: Extraction Routines now grants +25 gold per level, and Demonic Logistics now grants +5 gold per completed level.
+- Added upgrade caps and escalating prices to prevent unlimited flat-price scaling. Damage/health/income/arsenal cap at 5; masonry/traps cap at 4.
+- Replaced global nearest-defender hero targeting with route-aware targeting limited to defenders near the current BFS route. Hero attack range is now its own fixed melee radius rather than inheriting the target defender's range.
+- Added basic wall line-of-sight blocking for ranged defenders.
+- Added a moving projectile presentation instead of an instantaneous static line.
+- Reworked canvas rendering so walls, traps, and every defender class have distinct silhouettes and visual motifs instead of uniform rectangles. The server, entry, path, hero, health bars, and slow state are also more readable.
+- Added a selected-defense information panel to the construction UI.
+- Fixed the earlier trap HP problem explicitly by giving traps a real HP value.
+- Ran a JavaScript syntax compilation check after the changes. It passes. Full browser/headless regression testing remains the next validation step and has not been claimed here.
+
+Known architectural limitations intentionally remaining: defenders are still stationary, companion characters are still represented primarily through hero progression rather than separate map units, room/corridor construction is not yet implemented, and the projectile system is visual rather than physically colliding. These are larger feature expansions rather than silent bug fixes.
